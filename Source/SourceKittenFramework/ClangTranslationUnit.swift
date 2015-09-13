@@ -67,6 +67,26 @@ extension ClangTranslationUnit: CustomStringConvertible {
 
 // MARK: Helpers
 
+struct CursorNode: Hashable, CustomStringConvertible {
+    let cursor: CXCursor
+    var children: [CursorNode]
+
+    var description: String {
+        let commentXML = String.fromCString(clang_getCString(clang_FullComment_getAsXML(clang_Cursor_getParsedComment(cursor)))) ?? ""
+        let childXML = children.map { String($0) }
+        return toJSON(["root": commentXML, "children": childXML])
+    }
+
+    var hashValue: Int {
+        return Int(clang_hashCursor(cursor))
+    }
+}
+
+func == (lhs: CursorNode, rhs: CursorNode) -> Bool {
+    return clang_equalCursors(lhs.cursor, rhs.cursor) > 0 &&
+        zip(lhs.children, rhs.children).filter { $0 != $1 }.count == 0
+}
+
 /**
 Returns an array of XML comments by iterating over a Clang translation unit.
 
@@ -75,25 +95,21 @@ Returns an array of XML comments by iterating over a Clang translation unit.
 - returns: An array of XML comments by iterating over a Clang translation unit.
 */
 public func commentXML(translationUnit: CXTranslationUnit) -> [String] {
-    var commentXMLs = [String]()
+    let commentXMLs = [String]()
+    var cursors = [(CXCursor, CXCursor)]()
     clang_visitChildrenWithBlock(clang_getTranslationUnitCursor(translationUnit)) { cursor, parent in
-        guard let commentXML = String.fromCString(clang_getCString(clang_FullComment_getAsXML(clang_Cursor_getParsedComment(cursor)))) else {
+        if String.fromCString(clang_getCString(clang_FullComment_getAsXML(clang_Cursor_getParsedComment(cursor)))) == nil {
             return CXChildVisit_Recurse
         }
-        var file = CXFile()
-        var line: UInt32 = 0
-        var column: UInt32 = 0
-        var offset: UInt32 = 0
-        clang_getSpellingLocation(clang_getCursorLocation(parent),
-            &file,
-            &line,
-            &column,
-            &offset)
-        print("\(file) \(line) \(column) \(offset)")
-        print("parent hash: \(clang_hashCursor(parent))\nparent: \(parent)\nchild comment: \(commentXML)")
-        commentXMLs.append(commentXML)
+        cursors.append(cursor, parent)
         return CXChildVisit_Recurse
     }
+    let rootCursors = cursors.filter({ clang_Cursor_isNull($0.1) > 0 }).map({ $0.0 })
+    let nodes = rootCursors.map { rootCursor -> CursorNode in
+        let children = cursors.filter({ clang_equalCursors($0.1, rootCursor) > 0 }).map({CursorNode(cursor: $0.0, children: [])})
+        return CursorNode(cursor: rootCursor, children: children)
+    }
+    print(nodes)
     return commentXMLs
 }
 
