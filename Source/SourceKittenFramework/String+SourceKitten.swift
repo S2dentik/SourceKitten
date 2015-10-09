@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import AppKit
 
 public typealias Line = (index: Int, content: String)
 
@@ -303,5 +304,14 @@ extension String {
         let unwantedSet = whitespaceAndNewlineCharacterSet.mutableCopy() as! NSMutableCharacterSet
         unwantedSet.addCharactersInString("{")
         return stringByTrimmingCharactersInSet(unwantedSet)
+    }
+    
+    
+    mutating internal func filterCharacters() {
+        let str = NSMutableString(string: self)
+        let cfstr = str.mutableCopy() as! CFMutableString
+        var rng = CFRangeMake(0, CFStringGetLength(cfstr))
+        CFStringTransform(cfstr, &rng, kCFStringTransformToUnicodeName, false)
+        self = String(cfstr)
     }
 }

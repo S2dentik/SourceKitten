@@ -17,39 +17,66 @@ public struct File {
     public let contents: String
     /// File lines.
     public let lines: [Line]
-
+    
+    public let startLine: Int
+    public let startOffset: Int
+    public let size: Int
+    
+    
     /**
     Failable initializer by path. Fails if file contents could not be read as a UTF8 string.
-
+    
     - parameter path: File path.
     */
-    public init?(path: String) {
-        self.path = path
+    public init?(path: String, startLine: Int = 1, startOffset: Int = 0, size: Int = 0) {
         do {
-            self.contents = try NSString(contentsOfFile: path, encoding: NSUTF8StringEncoding) as String
-            self.lines = self.contents.lines()
+            let sourceCode = try NSString(contentsOfFile: path, encoding: NSUTF8StringEncoding) as String
+            //sourceCode.filterCharacters()
+            let data = sourceCode.dataUsingEncoding(NSASCIIStringEncoding, allowLossyConversion: true)
+            contents = NSString(data: data!, encoding: NSUTF8StringEncoding) as! String
+            lines = contents.lines()
         } catch {
             fputs("Could not read contents of `\(path)`\n", stderr)
             return nil
         }
+        
+        self.path = nil
+        self.startLine = startLine
+        self.startOffset = startOffset
+        self.size = size
     }
-
+    
     /**
     Initializer by file contents. File path is nil.
-
+    
     - parameter contents: File contents.
     */
-    public init(contents: String) {
+    public init(contents: String, startLine: Int = 1, startOffset: Int = 0, size: Int = 0) {
         path = nil
         self.contents = contents
         self.lines = self.contents.lines()
+        
+        self.startLine = startLine
+        self.startOffset = startOffset
+        self.size = size
     }
-
+    
+    
+    public init(lines: [String], startLine: Int = 1, startOffset: Int = 0, size: Int = 0) {
+        path = nil
+        self.contents = String(lines.reduce("", combine: { $0 + "\n" + $1 }).characters.dropFirst())
+        self.lines = self.contents.lines()
+        
+        self.startLine = startLine
+        self.startOffset = startOffset
+        self.size = self.contents.characters.count
+    }
+    
     /**
     Parse source declaration string from XPC dictionary.
-
+    
     - parameter dictionary: XPC dictionary to extract declaration from.
-
+    
     - returns: Source declaration if successfully parsed.
     */
     public func parseDeclaration(dictionary: XPCDictionary) -> String? {
@@ -64,7 +91,7 @@ public struct File {
                 .stringByTrimmingWhitespaceAndOpeningCurlyBrace()
         }
     }
-
+    
     /**
     Parse line numbers containing the declaration's implementation from XPC dictionary.
     
@@ -82,17 +109,17 @@ public struct File {
                 return SwiftDocKey.getBodyLength(dictionary).map { bodyLength in
                     return Int(bodyOffset + bodyLength)
                 }
-            } ?? start
+                } ?? start
             let length = end - start
             return contents.lineRangeWithByteRange(start: start, length: length)
         }
     }
-
+    
     /**
     Extract mark-style comment string from doc dictionary. e.g. '// MARK: - The Name'
-
+    
     - parameter dictionary: Doc dictionary to parse.
-
+    
     - returns: Mark name if successfully parsed.
     */
     private func markNameFromDictionary(dictionary: XPCDictionary) -> String? {
@@ -102,15 +129,15 @@ public struct File {
         if let fileContentsData = contents.dataUsingEncoding(NSUTF8StringEncoding),
             subdata = Optional(fileContentsData.subdataWithRange(NSRange(location: offset, length: length))),
             substring = NSString(data: subdata, encoding: NSUTF8StringEncoding) as String? {
-            return substring
+                return substring
         }
         return nil
     }
-
+    
     /**
     Returns a copy of the input dictionary with comment mark names, cursor.info information and
     parsed declarations for the top-level of the input dictionary and its substructures.
-
+    
     - parameter dictionary:        Dictionary to process.
     - parameter cursorInfoRequest: Cursor.Info request to get declaration information.
     */
@@ -121,39 +148,39 @@ public struct File {
                 dictWithCommentMarkNamesCursorInfo(dictionary, cursorInfoRequest: cursorInfoRequest)
             )
         }
-
+        
         // Parse declaration and add to dictionary
         if let parsedDeclaration = parseDeclaration(dictionary) {
             dictionary[SwiftDocKey.ParsedDeclaration.rawValue] = parsedDeclaration
         }
-
+        
         // Parse scope range and add to dictionary
         if let parsedScopeRange = parseScopeRange(dictionary) {
             dictionary[SwiftDocKey.ParsedScopeStart.rawValue] = Int64(parsedScopeRange.start)
             dictionary[SwiftDocKey.ParsedScopeEnd.rawValue] = Int64(parsedScopeRange.end)
         }
-
+        
         // Parse `key.doc.full_as_xml` and add to dictionary
         if let parsedXMLDocs = (SwiftDocKey.getFullXMLDocs(dictionary).flatMap(parseFullXMLDocs)) {
             dictionary = merge(dictionary, parsedXMLDocs)
-
+            
             // Parse documentation comment and add to dictionary
             if let commentBody = (syntaxMap.flatMap { getDocumentationCommentBody(dictionary, syntaxMap: $0) }) {
                 dictionary[SwiftDocKey.DocumentationComment.rawValue] = commentBody
             }
         }
-
+        
         // Update substructure
         if let substructure = newSubstructure(dictionary, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap) {
             dictionary[SwiftDocKey.Substructure.rawValue] = substructure
         }
         return dictionary
     }
-
+    
     /**
     Returns a copy of the input dictionary with additional cursorinfo information at the given
     `documentationTokenOffsets` that haven't yet been documented.
-
+    
     - parameter dictionary:             Dictionary to insert new docs into.
     - parameter documentedTokenOffsets: Offsets that are likely documented.
     - parameter cursorInfoRequest:      Cursor.Info request to get declaration information.
@@ -166,35 +193,35 @@ public struct File {
                 _ = SwiftDeclarationKind(rawValue: kind),
                 parentOffset = offsetMap[offset].flatMap({ Int64($0) }),
                 inserted = insertDoc(response, parent: dictionary, offset: parentOffset) {
-                dictionary = inserted
+                    dictionary = inserted
             }
         }
         return dictionary
     }
-
+    
     /**
     Update input dictionary's substructure by running `processDictionary(_:cursorInfoRequest:syntaxMap:)` on
     its elements, only keeping comment marks and declarations.
-
+    
     - parameter dictionary:        Input dictionary to process its substructure.
     - parameter cursorInfoRequest: Cursor.Info request to get declaration information.
-
+    
     - returns: A copy of the input dictionary's substructure processed by running
-               `processDictionary(_:cursorInfoRequest:syntaxMap:)` on its elements, only keeping comment marks
-               and declarations.
+    `processDictionary(_:cursorInfoRequest:syntaxMap:)` on its elements, only keeping comment marks
+    and declarations.
     */
     private func newSubstructure(dictionary: XPCDictionary, cursorInfoRequest: xpc_object_t?, syntaxMap: SyntaxMap?) -> XPCArray? {
         return SwiftDocKey.getSubstructure(dictionary)?
             .map({ $0 as! XPCDictionary })
-            .filter(isDeclarationOrCommentMark)
+            //            .filter(isDeclarationOrCommentMark)
             .map {
                 processDictionary($0, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap)
         }
     }
-
+    
     /**
     Returns an updated copy of the input dictionary with comment mark names and cursor.info information.
-
+    
     - parameter dictionary:        Dictionary to update.
     - parameter cursorInfoRequest: Cursor.Info request to get declaration information.
     */
@@ -210,7 +237,7 @@ public struct File {
                 // Update if kind is a declaration (but not a parameter)
                 var updateDict = Request.sendCursorInfoRequest(cursorInfoRequest,
                     atOffset: SwiftDocKey.getNameOffset(dictionary)!) ?? XPCDictionary()
-
+                
                 // Skip kinds, since values from editor.open are more accurate than cursorinfo
                 updateDict.removeValueForKey(SwiftDocKey.Kind.rawValue)
                 return updateDict
@@ -218,29 +245,29 @@ public struct File {
         }
         return nil
     }
-
+    
     /**
     Returns whether or not a doc should be inserted into a parent at the provided offset.
-
+    
     - parameter parent: Parent dictionary to evaluate.
     - parameter offset: Offset to search for in parent dictionary.
-
+    
     - returns: True if a doc should be inserted in the parent at the provided offset.
     */
     private func shouldInsert(parent: XPCDictionary, offset: Int64) -> Bool {
         return (offset == 0) ||
             (shouldTreatAsSameFile(parent) && SwiftDocKey.getOffset(parent) == offset)
     }
-
+    
     /**
     Inserts a document dictionary at the specified offset.
     Parent will be traversed until the offset is found.
     Returns nil if offset could not be found.
-
+    
     - parameter doc:    Document dictionary to insert.
     - parameter parent: Parent to traverse to find insertion point.
     - parameter offset: Offset to insert document dictionary.
-
+    
     - returns: Parent with doc inserted if successful.
     */
     private func insertDoc(doc: XPCDictionary, var parent: XPCDictionary, offset: Int64) -> XPCDictionary? {
@@ -270,20 +297,20 @@ public struct File {
         }
         return nil
     }
-
+    
     /**
     Returns true if path is nil or if path has the same last path component as `key.filepath` in the
     input dictionary.
-
+    
     - parameter dictionary: Dictionary to parse.
     */
     internal func shouldTreatAsSameFile(dictionary: XPCDictionary) -> Bool {
         return path == SwiftDocKey.getFilePath(dictionary)
     }
-
+    
     /**
     Returns true if the input dictionary contains a parseable declaration.
-
+    
     - parameter dictionary: Dictionary to parse.
     */
     private func shouldParseDeclaration(dictionary: XPCDictionary) -> Bool {
@@ -294,15 +321,15 @@ public struct File {
         let isntExtension           = SwiftDocKey.getKind(dictionary) != SwiftDeclarationKind.Extension.rawValue
         return sameFile && hasTypeName && hasAnnotatedDeclaration && hasOffset && isntExtension
     }
-
+    
     /**
     Parses `dictionary`'s documentation comment body.
-
+    
     - parameter dictionary: Dictionary to parse.
     - parameter syntaxMap:  SyntaxMap for current file.
     
     - returns: `dictionary`'s documentation comment body as a string, without any documentation
-               syntax (`/** ... */` or `/// ...`).
+    syntax (`/** ... */` or `/// ...`).
     */
     public func getDocumentationCommentBody(dictionary: XPCDictionary, syntaxMap: SyntaxMap) -> String? {
         return SwiftDocKey.getOffset(dictionary).flatMap { offset in
@@ -312,6 +339,30 @@ public struct File {
                 }
             }
         }
+    }
+    
+    /**
+    Returns tuple consisting of starting line and ending line of structure.
+    */
+    public func getLines(dictionary: XPCDictionary) -> (start: Int, end: Int)? {
+        return SwiftDocKey.getOffset(dictionary).flatMap { start in
+            let start = Int(start)
+            let end = SwiftDocKey.getBodyOffset(dictionary).flatMap { bodyOffset in
+                return SwiftDocKey.getBodyLength(dictionary).map { bodyLength in
+                    return Int(bodyOffset + bodyLength)
+                }
+                } ?? start
+            let length = end - start
+            return self.contents.lineRangeWithByteRange(start: start, length: length)
+        }
+    }
+    
+    /**
+    Returns tuple consisting of line offset. Anyone is free to modify it to return
+    a single value.
+    */
+    public func getLineByOffset(offset: Int, length: Int) -> (start: Int, end: Int) {
+        return self.contents.lineRangeWithByteRange(start: offset, length: 0) ?? (lines.count, lines.count)
     }
 }
 
