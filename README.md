@@ -10,7 +10,7 @@ SourceKitten links and communicates with `sourcekitd.framework` to parse the Swi
 
 Building SourceKitten up to 0.4.5 requires Xcode 6.4.
 
-Building SourceKitten 0.5.0 or later requires Xcode 7 Beta 6.
+Building SourceKitten 0.5.0 or later requires Xcode 7.
 
 SourceKitten typically supports previous versions of SourceKit.
 
@@ -24,7 +24,7 @@ Run `git clone` for this repo followed by `make install` in the root directory.
 
 ### Package
 
-Download and open SourceKitten.pkg from the [releases tab](/jpsim/SourceKitten/releases).
+Download and open SourceKitten.pkg from the [releases tab](https://github.com/jpsim/SourceKitten/releases).
 
 ## Command Line Usage
 
@@ -71,6 +71,12 @@ options for the offset in the file/text provided:
 },
 ...
 ]
+```
+
+To use the iOS SDK is to specified the `compilerargs` option. The value
+specified by `compilerargs` the `--` to must be prefixed:
+```
+sourcekitten complete --text "import UIKit ; UIColor." --offset 22 --compilerargs -- '-target arm64-apple-ios9.0 -sdk /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS9.0.sdk'
 ```
 
 ## Doc

@@ -1,3 +1,36 @@
+## 0.5.2
+
+##### Breaking
+
+None.
+
+##### Enhancements
+
+* Add `compilerargs` option to complete command.  
+  [Masayuki Yamaya](https://github.com/yamaya)
+
+##### Bug Fixes
+
+None.
+
+
+## 0.5.1
+
+##### Breaking
+
+None.
+
+##### Enhancements
+
+* Improve error reporting when compiler arguments can't be parsed and log
+  `xcodebuild` output to file instead of stderr.  
+  [JP Simard](https://github.com/jpsim)
+
+##### Bug Fixes
+
+None.
+
+
 ## 0.5.0
 
 ##### Breaking
