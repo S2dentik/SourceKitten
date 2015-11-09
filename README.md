@@ -91,7 +91,7 @@ Running `sourcekitten doc` will pass all arguments after what is parsed to
 2. `sourcekitten doc --single-file file.swift -j4 file.swift`
 3. `sourcekitten doc --module-name Alamofire -project Alamofire.xcodeproj`
 4. `sourcekitten doc -workspace Haneke.xcworkspace -scheme Haneke`
-5. `sourcekitten doc --objc Realm/*.h*`
+5. `sourcekitten doc --objc Realm/Realm.h -x objective-c -isysroot $(xcrun --show-sdk-path) -I $(pwd)`
 
 ## Structure
 
@@ -155,6 +155,14 @@ Running `sourcekitten syntax --file file.swift` or `sourcekitten syntax --text "
   }
 ]
 ```
+
+## SourceKittenFramework
+
+Most of the functionality of the `sourcekitten` command line tool is actually encapsulated in a framework named SourceKittenFramework.
+
+If you’re interested in using SourceKitten as part of another tool, or perhaps extending its functionality, take a look at the SourceKittenFramework source code to see if the API fits your needs.
+
+*Note: SourceKitten is written entirely in Swift, and the SourceKittenFramework API is not designed to interface with Objective-C.*
 
 ## License
 

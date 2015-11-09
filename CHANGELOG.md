@@ -1,3 +1,22 @@
+## Master
+
+##### Breaking
+
+None.
+
+##### Enhancements
+
+* Ability to generate Objective-C documentation.  
+  [Thomas Goyne](https://github.com/tgoyne)
+  [JP Simard](https://github.com/jpsim)
+
+##### Bug Fixes
+
+* Don't process SourceKit's response when building Structure.  
+  [JP Simard](https://github.com/jpsim)
+  [#82](https://github.com/jpsim/SourceKitten/issues/82)
+
+
 ## 0.5.2
 
 ##### Breaking
@@ -9,9 +28,14 @@ None.
 * Add `compilerargs` option to complete command.  
   [Masayuki Yamaya](https://github.com/yamaya)
 
+* Add support for Xcode 7.1.  
+  [JP Simard](https://github.com/jpsim)
+
 ##### Bug Fixes
 
-None.
+* Fix a bug where documentation inside a function would crash SourceKitten.  
+  [JP Simard](https://github.com/jpsim)
+  [#75](https://github.com/jpsim/SourceKitten/issues/75)
 
 
 ## 0.5.1

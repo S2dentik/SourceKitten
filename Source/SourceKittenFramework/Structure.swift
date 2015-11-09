@@ -13,7 +13,6 @@ import SwiftXPC
 public struct Structure {
     /// Structural information as an XPCDictionary.
     public let dictionary: XPCDictionary
-    public let syntaxMap: SyntaxMap
     
     /**
     Initialize a Structure by passing in a File.
@@ -22,9 +21,8 @@ public struct Structure {
     */
     public init(file: File) {
         var tmpDictionary = Request.EditorOpen(file).send()
-        let syntaxMapData = tmpDictionary.removeValueForKey(SwiftDocKey.SyntaxMap.rawValue) as! NSData
-        syntaxMap = SyntaxMap(data: syntaxMapData)
-        dictionary = file.processDictionary(tmpDictionary, cursorInfoRequest: nil, syntaxMap: SyntaxMap(data: syntaxMapData))
+        _ = tmpDictionary.removeValueForKey(SwiftDocKey.SyntaxMap.rawValue)
+        dictionary = tmpDictionary
     }
 }
 
