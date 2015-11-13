@@ -6,6 +6,22 @@ None.
 
 ##### Enhancements
 
+* Support "wall of asterisk" documentation comments.  
+  [Jeff Verkoeyen](https://github.com/jverkoey)
+
+##### Bug Fixes
+
+None.
+
+
+## 0.6.0
+
+##### Breaking
+
+None.
+
+##### Enhancements
+
 * Ability to generate Objective-C documentation.  
   [Thomas Goyne](https://github.com/tgoyne)
   [JP Simard](https://github.com/jpsim)

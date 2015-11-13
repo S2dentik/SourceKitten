@@ -13,6 +13,15 @@ public typealias Line = (index: Int, content: String)
 
 private let whitespaceAndNewlineCharacterSet = NSCharacterSet.whitespaceAndNewlineCharacterSet()
 
+private let commentLinePrefixCharacterSet: NSCharacterSet = {
+  let characterSet = NSMutableCharacterSet.whitespaceAndNewlineCharacterSet()
+  /**
+   * For "wall of asterisk" comment blocks, such as this one.
+   */
+  characterSet.addCharactersInString("*")
+  return characterSet
+}()
+
 extension NSString {
     /**
     Binary search for NSString index equivalent to byte offset.
@@ -182,14 +191,14 @@ extension NSString {
 
 extension String {
     /// Returns the `#pragma mark`s in the string.
-    /// Just the content; no dashes or leading `#pragma mark`.
+    /// Just the content; no leading dashes or leading `#pragma mark`.
     public func pragmaMarks(filename: String, excludeRanges: [NSRange], limitRange: NSRange?) -> [SourceDeclaration] {
-        let regex = try! NSRegularExpression(pattern: "#pragma\\smark[\\s-]*([^-\\n]+)", options: []) // Safe to force try
+        let regex = try! NSRegularExpression(pattern: "(#pragma\\smark|@name)[ -]*([^\\n]+)", options: []) // Safe to force try
         let range = limitRange ?? NSRange(location: 0, length: utf16.count)
         let matches = regex.matchesInString(self, options: [], range: range)
 
         return matches.flatMap { match in
-            let markRange = match.rangeAtIndex(1)
+            let markRange = match.rangeAtIndex(2)
             for excludedRange in excludeRanges {
                 if NSIntersectionRange(excludedRange, markRange).length > 0 {
                     return nil
@@ -197,6 +206,9 @@ extension String {
             }
             let markString = (self as NSString).substringWithRange(markRange)
                 .stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceCharacterSet())
+            if markString.isEmpty {
+                return nil
+            }
             let location = SourceLocation(file: filename,
                 line: UInt32((self as NSString).lineRangeWithByteRange(start: markRange.location, length: 0)!.start),
                 column: 1, offset: UInt32(markRange.location))
@@ -298,17 +310,20 @@ extension String {
 
     /// Returns a copy of `self` with the leading whitespace common in each line removed.
     public func stringByRemovingCommonLeadingWhitespaceFromLines() -> String {
-        var minLeadingWhitespace = Int.max
+        var minLeadingCharacters = Int.max
+
         enumerateLines { line, _ in
             let lineLeadingWhitespace = line.countOfLeadingCharactersInSet(whitespaceAndNewlineCharacterSet)
-            if lineLeadingWhitespace < minLeadingWhitespace && lineLeadingWhitespace != line.characters.count {
-                minLeadingWhitespace = lineLeadingWhitespace
+            let lineLeadingCharacters = line.countOfLeadingCharactersInSet(commentLinePrefixCharacterSet)
+            // Is this prefix smaller than our last and not entirely whitespace?
+            if lineLeadingCharacters < minLeadingCharacters && lineLeadingWhitespace != line.characters.count {
+                minLeadingCharacters = lineLeadingCharacters
             }
         }
         var lines = [String]()
         enumerateLines { line, _ in
-            if line.characters.count >= minLeadingWhitespace {
-                lines.append(line[line.startIndex.advancedBy(minLeadingWhitespace)..<line.endIndex])
+            if line.characters.count >= minLeadingCharacters {
+                lines.append(line[line.startIndex.advancedBy(minLeadingCharacters)..<line.endIndex])
             } else {
                 lines.append(line)
             }
