@@ -127,8 +127,8 @@ extension NSString {
                 return NSMaxRange(line.range)
             }
             let utf8View = line.content.utf8
-            let endUTF16index = utf8View.index(utf8View.startIndex, offsetBy: diff, limitedBy: utf8View.endIndex)!
-                .samePosition(in: line.content.utf16)!
+            guard let endUTF16index = utf8View.index(utf8View.startIndex, offsetBy: diff, limitedBy: utf8View.endIndex)?
+                .samePosition(in: line.content.utf16) else { return line.index }
             let utf16Diff = line.content.utf16.distance(from: line.content.utf16.startIndex, to: endUTF16index)
             return line.range.location + utf16Diff
         }
@@ -156,8 +156,8 @@ extension NSString {
                 return NSMaxRange(line.byteRange)
             }
             let utf16View = line.content.utf16
-            let endUTF8index = utf16View.index(utf16View.startIndex, offsetBy: diff, limitedBy: utf16View.endIndex)!
-                .samePosition(in: line.content.utf8)!
+            guard let endUTF8index = utf16View.index(utf16View.startIndex, offsetBy: diff, limitedBy: utf16View.endIndex)?
+                .samePosition(in: line.content.utf8) else { return line.index }
             let byteDiff = line.content.utf8.distance(from: line.content.utf8.startIndex, to: endUTF8index)
             return line.byteRange.location + byteDiff
         }

@@ -12,23 +12,23 @@ import Foundation
 public struct Structure {
     /// Structural information as an [String: SourceKitRepresentable].
     public let dictionary: [String: SourceKitRepresentable]
-
+    
     /**
-    Create a Structure from a SourceKit `editor.open` response.
+     Create a Structure from a SourceKit `editor.open` response.
      
-    - parameter sourceKitResponse: SourceKit `editor.open` response.
-    */
+     - parameter sourceKitResponse: SourceKit `editor.open` response.
+     */
     public init(sourceKitResponse: [String: SourceKitRepresentable]) {
-        var sourceKitResponse = sourceKitResponse
-        _ = sourceKitResponse.removeValue(forKey: SwiftDocKey.syntaxMap.rawValue)
+        syntaxMap = SyntaxMap(sourceKitResponse: sourceKitResponse)
         dictionary = sourceKitResponse
     }
-
+    
+    public let syntaxMap: SyntaxMap
     /**
-    Initialize a Structure by passing in a File.
-
-    - parameter file: File to parse for structural information.
-    */
+     Initialize a Structure by passing in a File.
+     
+     - parameter file: File to parse for structural information.
+     */
     public init(file: File) {
         self.init(sourceKitResponse: Request.editorOpen(file: file).send())
     }

@@ -18,11 +18,17 @@ import SWXMLHash
 /// Represents a source file.
 public final class File {
     /// File path. Nil if initialized directly with `File(contents:)`.
-    public let path: String?
+    public var path: String?
     /// File contents.
     public var contents: String
     /// File lines.
-    public var lines: [Line]
+    public let lines: [Line]
+    /// Subfile starting line.
+    public var startLine = 1
+    /// Subfile starting offset.
+    public var startOffset = 0
+    /// Subfile size.
+    public var size = 0
 
     /**
     Failable initializer by path. Fails if file contents could not be read as a UTF8 string.
@@ -32,12 +38,55 @@ public final class File {
     public init?(path: String) {
         self.path = path.bridge().absolutePathRepresentation()
         do {
-            contents = try String(contentsOfFile: path, encoding: .utf8)
-            lines = contents.bridge().lines()
+            let sourceCode = try NSString(contentsOfFile: path, encoding: String.Encoding.utf8.rawValue) as String
+            let data = sourceCode.data(using: String.Encoding.ascii, allowLossyConversion: true)
+            contents = NSString(data: data!, encoding: String.Encoding.utf8.rawValue) as! String
+            lines = contents.lines()
         } catch {
             fputs("Could not read contents of `\(path)`\n", stderr)
             return nil
         }
+        self.path = nil
+    }
+    
+    /**
+    Initializers for subfile given path.
+    **/
+    
+    public init?(path: String, startLine: Int, startOffset: Int, size: Int) {
+        do {
+            let sourceCode = try NSString(contentsOfFile: path, encoding: String.Encoding.utf8.rawValue) as String
+            let data = sourceCode.data(using: String.Encoding.ascii, allowLossyConversion: true)
+            contents = NSString(data: data!, encoding: String.Encoding.utf8.rawValue) as! String
+            lines = contents.lines()
+        } catch {
+            fputs("Could not read contents of `\(path)`\n", stderr)
+            return nil
+        }
+        self.path = nil
+        self.startLine = startLine
+        self.startOffset = startOffset
+        self.size = size
+    }
+    
+    public init(contents: String, startLine: Int, startOffset: Int, size: Int) {
+        path = nil
+        self.contents = contents
+        lines = self.contents.lines()
+        
+        self.startLine = startLine
+        self.startOffset = startOffset
+        self.size = size
+    }
+    
+    public init(lines: [String], startLine: Int, startOffset: Int) {
+        path = nil
+        let lines = lines.reduce("") { $0 + "\n" + $1 }.characters.dropFirst()
+        self.contents = String(lines)
+        self.lines = self.contents.lines()
+        self.startLine = startLine
+        self.startOffset = startOffset
+        self.size = self.contents.characters.count
     }
 
     /**
@@ -190,7 +239,7 @@ public final class File {
         }
 
         // Update substructure
-        if let substructure = newSubstructure(dictionary, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap) {
+        if let substructure = newSubstructureWithComments(dictionary: dictionary, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap) {
             dictionary[SwiftDocKey.substructure.rawValue] = substructure
         }
         return dictionary
@@ -236,11 +285,15 @@ public final class File {
     private func newSubstructure(_ dictionary: [String: SourceKitRepresentable], cursorInfoRequest: sourcekitd_object_t?,
                                  syntaxMap: SyntaxMap?) -> [SourceKitRepresentable]? {
         return SwiftDocKey.getSubstructure(dictionary)?
-            .map({ $0 as! [String: SourceKitRepresentable] })
+            .flatMap { $0 as? [String: SourceKitRepresentable] }
             .filter(isDeclarationOrCommentMark)
-            .map {
-                process(dictionary: $0, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap)
-            }
+            .map { process(dictionary: $0, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap) }
+    }
+    
+    private func newSubstructureWithComments(dictionary: [String: SourceKitRepresentable], cursorInfoRequest: sourcekitd_object_t?, syntaxMap: SyntaxMap?) -> [SourceKitRepresentable]? {
+        return SwiftDocKey.getSubstructure(dictionary)?
+            .flatMap { $0 as? [String: SourceKitRepresentable] }
+            .map { process(dictionary: $0, cursorInfoRequest: cursorInfoRequest, syntaxMap: syntaxMap) }
     }
 
     /**
@@ -389,6 +442,30 @@ public final class File {
             return contents.commentBody(range: nsRange)
         }
         return nil
+    }
+    
+    /**
+    Returns tuple consisting of starting line and ending line of structure.
+    */
+    public func getLines(dictionary: [String: SourceKitRepresentable]) -> (start: Int, end: Int)? {
+        return SwiftDocKey.getOffset(dictionary).flatMap { start in
+            let start = Int(start)
+            let end = SwiftDocKey.getBodyOffset(dictionary).flatMap { bodyOffset in
+            return SwiftDocKey.getBodyLength(dictionary).map { bodyLength in
+                return Int(bodyOffset + bodyLength)
+            }
+            } ?? start
+            let length = end - start
+            return self.contents.lineRangeWithByteRange(start: start, length: length)
+        }
+    }
+    
+    /**
+    Returns tuple consisting of line offset. Anyone is free to modify it to return
+    a single value.
+    */
+    public func getLineByOffset(offset: Int, length: Int) -> (start: Int, end: Int) {
+        return self.contents.lineRangeWithByteRange(start: offset, length: 0) ?? (lines.count, lines.count)
     }
 }
 
